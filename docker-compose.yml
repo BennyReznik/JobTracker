@@ -1,0 +1,21 @@
+services:
+  api:
+    build: ./backend/JobTracker.Api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Default: Data Source=/app/data/jobs.db
+    volumes:
+      # The SQLite database is a normal file in ./data on your computer
+      # (C:\Other\Repos\job-tracker\data\jobs.db). Docker cleanup can't delete it.
+      - ./data:/app/data
+    ports:
+      - "127.0.0.1:5000:8080"
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:4200:80"

@@ -1,0 +1,157 @@
+<header class="top">
+  <h1>Job Search Tracker</h1>
+  <button class="primary" (click)="openNew()">+ Add job</button>
+</header>
+
+<main>
+  @if (error()) {
+    <div class="error">{{ error() }}</div>
+  }
+
+  <section class="stats">
+    <button class="stat" [class.active]="filter() === 'all'" (click)="setFilter('all')">
+      <strong>{{ counts()['all'] }}</strong><span>All</span>
+    </button>
+    <button
+      class="stat"
+      [class.active]="filter() === 'active'"
+      title="Everything except Rejected and Withdrawn"
+      (click)="setFilter('active')"
+    >
+      <strong>{{ counts()['active'] }}</strong><span>Active</span>
+    </button>
+    @for (s of statuses; track s.value) {
+      <button
+        class="stat"
+        [class.active]="filter() === s.value"
+        [style.--c]="s.color"
+        (click)="setFilter(s.value)"
+      >
+        <strong>{{ counts()[s.value] }}</strong><span>{{ s.label }}</span>
+      </button>
+    }
+  </section>
+
+  <section class="toolbar">
+    <input
+      type="search"
+      placeholder="Search company, role, location, notes…"
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event)"
+    />
+    <label class="sort">
+      <span>Sort</span>
+      <select [ngModel]="sort()" (ngModelChange)="setSort($event)">
+        @for (s of sorts; track s.value) {
+          <option [value]="s.value">{{ s.label }}</option>
+        }
+      </select>
+    </label>
+    <div class="leave">
+      <span>Leave home</span>
+      <input type="time" [ngModel]="leaveFrom()" (ngModelChange)="leaveFrom.set($event)" (change)="saveLeaveWindow()" />
+      <span>–</span>
+      <input type="time" [ngModel]="leaveTo()" (ngModelChange)="leaveTo.set($event)" (change)="saveLeaveWindow()" />
+    </div>
+  </section>
+
+  @if (loading()) {
+    <p class="empty">Loading…</p>
+  } @else if (visible().length === 0) {
+    <p class="empty">No jobs to show.</p>
+  }
+
+  <section class="list">
+    @for (j of visible(); track j.id) {
+      <article class="card" (click)="openEdit(j)">
+        <div class="row">
+          <div>
+            <h2>{{ j.company }}</h2>
+            <div class="role">{{ j.role }}</div>
+          </div>
+          <span class="badge" [style.--c]="statusInfo(j.status).color">{{ statusInfo(j.status).label }}</span>
+        </div>
+
+        @if (j.location) {
+          <div class="meta">📍 {{ j.location }}</div>
+        }
+
+        @if (duration(j.carMin, j.carMax); as d) {
+          <div class="meta" [title]="j.carNote ?? ''">
+            🚗 {{ d }} · arrive {{ arrival(j.carMin, j.carMax) }}
+          </div>
+        }
+        @if (duration(j.transitMin, j.transitMax); as d) {
+          <div class="meta" [title]="j.transitNote ?? ''">
+            🚆 {{ d }} · arrive {{ arrival(j.transitMin, j.transitMax) }}
+          </div>
+        }
+
+        <div class="meta dim">
+          @if (j.applied) { Applied {{ j.applied }} } @else { Date applied not set }
+        </div>
+
+        @if (j.nextStep || j.nextDate) {
+          <div class="next" [class.overdue]="dueState(j) === 'overdue'" [class.soon]="dueState(j) === 'soon'">
+            Next: {{ j.nextStep }} @if (j.nextDate) { <span>({{ j.nextDate }})</span> }
+          </div>
+        }
+
+        @if (j.notes) {
+          <p class="notes">{{ j.notes }}</p>
+        }
+
+        @if (j.url) {
+          <a [href]="j.url" target="_blank" rel="noopener" (click)="$event.stopPropagation()">Open posting ↗</a>
+        }
+      </article>
+    }
+  </section>
+</main>
+
+@if (dialogOpen()) {
+  <div class="backdrop" (click)="closeDialog()">
+    <form class="dialog" (click)="$event.stopPropagation()" (ngSubmit)="save()" #f="ngForm">
+      <h2>{{ editing() ? 'Edit job' : 'Add job' }}</h2>
+
+      <div class="grid">
+        <label>Company <input name="company" [(ngModel)]="form.company" required /></label>
+        <label>Role <input name="role" [(ngModel)]="form.role" required /></label>
+
+        <label>Status
+          <select name="status" [(ngModel)]="form.status">
+            @for (s of statuses; track s.value) {
+              <option [value]="s.value">{{ s.label }}</option>
+            }
+          </select>
+        </label>
+        <label>Date applied <input type="date" name="applied" [(ngModel)]="form.applied" /></label>
+
+        <label>Next step <input name="nextStep" [(ngModel)]="form.nextStep" /></label>
+        <label>Next step date <input type="date" name="nextDate" [(ngModel)]="form.nextDate" /></label>
+
+        <label class="wide">Posting URL <input name="url" [(ngModel)]="form.url" /></label>
+        <label class="wide">Location <input name="location" [(ngModel)]="form.location" /></label>
+
+        <label>Car min (min) <input type="number" min="0" name="carMin" [(ngModel)]="form.carMin" /></label>
+        <label>Car max (min) <input type="number" min="0" name="carMax" [(ngModel)]="form.carMax" /></label>
+        <label class="wide">Car note <input name="carNote" [(ngModel)]="form.carNote" /></label>
+
+        <label>Transit min (min) <input type="number" min="0" name="transitMin" [(ngModel)]="form.transitMin" /></label>
+        <label>Transit max (min) <input type="number" min="0" name="transitMax" [(ngModel)]="form.transitMax" /></label>
+        <label class="wide">Transit note <input name="transitNote" [(ngModel)]="form.transitNote" /></label>
+
+        <label class="wide">Notes <textarea rows="4" name="notes" [(ngModel)]="form.notes"></textarea></label>
+      </div>
+
+      <div class="actions">
+        @if (editing()) {
+          <button type="button" class="danger" (click)="remove()">Delete</button>
+        }
+        <span class="spacer"></span>
+        <button type="button" (click)="closeDialog()">Cancel</button>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </div>
+}
